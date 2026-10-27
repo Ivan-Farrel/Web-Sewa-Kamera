@@ -24,6 +24,11 @@ class CatalogController extends Controller
                 && (! $request->filled('harga_max') || $product['price'] <= (int) $request->input('harga_max'));
         })->values();
 
-        return response()->json(['data' => $filtered]);
+        return view('products.index', ['products' => $filtered, 'filters' => $request->only('q', 'kategori', 'harga_min', 'harga_max')]);
+    }
+
+    public function show()
+    {
+        return view('products.show');
     }
 }

@@ -11,7 +11,11 @@ class AuthController extends Controller
 {
     public function show()
     {
-        return view('camhub.login-register');
+        if (Auth::check()) {
+            return redirect()->route('camhub.dashboard-pelanggan');
+        }
+
+        return view('auth.login');
     }
 
     public function login(Request $request)

@@ -9,7 +9,9 @@ class KycController extends Controller
 {
     public function show()
     {
-        return view('camhub.verifikasi-kyc');
+        $submission = request()->user()->kycSubmissions()->latest()->first();
+
+        return view('kyc.index', compact('submission'));
     }
 
     public function store(Request $request)
@@ -18,7 +20,7 @@ class KycController extends Controller
             'nama_lengkap' => ['required', 'string', 'max:255'],
             'nik' => ['required', 'digits:16'],
             'tanggal_lahir' => ['required', 'date', 'before:today'],
-            'jenis_kelamin' => ['required', 'in:laki-laki,perempuan'],
+            'jenis_kelamin' => ['required', 'in:Laki-laki,Perempuan'],
             'dokumen_ktp' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
