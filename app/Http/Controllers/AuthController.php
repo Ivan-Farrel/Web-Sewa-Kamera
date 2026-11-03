@@ -31,7 +31,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('camhub.dashboard-pelanggan'));
+        return redirect()->intended(route($this->destinationFor(Auth::user())));
     }
 
     public function register(Request $request)
@@ -39,19 +39,32 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:30'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'in:customer,mitra'],
         ]);
 
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
+            'phone' => $data['phone'],
             'password' => Hash::make($data['password']),
+            'role' => $data['role'],
         ]);
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('camhub.dashboard-pelanggan');
+        return redirect()->route($this->destinationFor($user));
+    }
+
+    private function destinationFor(User $user): string
+    {
+        return match ($user->role) {
+            'admin' => 'admin.dashboard',
+            'mitra' => $user->kycSubmissions()->exists() ? 'vendor.dashboard' : 'camhub.kyc',
+            default => 'camhub.dashboard-pelanggan',
+        };
     }
 
     public function logout(Request $request)

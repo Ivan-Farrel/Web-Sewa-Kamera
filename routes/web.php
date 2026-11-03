@@ -21,7 +21,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/bookings/create', [BookingController::class, 'create'])->name('bookings.create');
     Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store');
     Route::get('/customer', [BookingController::class, 'dashboard'])->name('camhub.dashboard-pelanggan');
-    Route::get('/vendor', fn () => auth()->user()->role === 'vendor' ? view('vendor.dashboard') : abort(403))->name('vendor.dashboard');
+    Route::get('/vendor', fn () => auth()->user()->role === 'mitra'
+        ? (auth()->user()->kycSubmissions()->exists() ? view('vendor.dashboard') : redirect()->route('camhub.kyc'))
+        : abort(403))->name('vendor.dashboard');
     Route::get('/admin', fn () => auth()->user()->role === 'admin' ? view('admin.dashboard') : abort(403))->name('admin.dashboard');
     Route::get('/kyc', [KycController::class, 'show'])->name('camhub.kyc');
     Route::post('/kyc', [KycController::class, 'store'])->name('kyc.store');
