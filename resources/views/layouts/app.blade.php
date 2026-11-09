@@ -17,8 +17,8 @@
     </form>
     <nav class="nav-links">
         <a href="{{ route('home') }}">Beranda</a>
-        <a href="{{ route('products.index') }}">Katalog</a>
-        @auth <a href="{{ route('camhub.dashboard-pelanggan') }}">Pesanan saya</a> @else <a href="{{ route('camhub.login') }}">Sewa</a> @endauth
+        <a href="{{ route('products.index') }}">Katalog Sewa</a>
+        @auth <a href="{{ route('camhub.dashboard-pelanggan') }}">Pesanan saya</a> @endauth
     </nav>
     <div class="nav-actions">
         @auth
@@ -33,6 +33,6 @@
 @if(session('success')) <div class="notice" role="status">{{ session('success') }}</div> @endif
 @if ($errors->any()) <div class="notice" role="alert">{{ $errors->first() }}</div> @endif
 @yield('content')
-<script src="{{ asset('js/script.js') }}"></script>
+<script src="{{ asset('js/script.js') }}?v={{ file_exists(public_path('js/script.js')) ? filemtime(public_path('js/script.js')) : time() }}"></script>
 </body>
 </html>

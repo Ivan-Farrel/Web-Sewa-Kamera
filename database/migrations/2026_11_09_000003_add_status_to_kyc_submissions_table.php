@@ -8,15 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('role', 20)->default('customer');
+        Schema::table('kyc_submissions', function (Blueprint $table) {
+            $table->string('status')->default('Menunggu Review')->after('dokumen_path');
         });
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('role');
+        Schema::table('kyc_submissions', function (Blueprint $table) {
+            $table->dropColumn('status');
         });
     }
 };

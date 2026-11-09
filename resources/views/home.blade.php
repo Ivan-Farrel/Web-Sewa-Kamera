@@ -9,17 +9,40 @@
             <p>Sewa, jual, beli, atau titip kamera dan lensa dengan aman, mudah, dan terpercaya.</p>
         </div>
     </section>
+    
     <section class="service-strip">
         <div><span class="service-icon">▣</span><span><strong>Sewa Kamera</strong><small>Mulai dari kebutuhanmu</small></span></div>
         <div><span class="service-icon">◉</span><span><strong>Jual Beli</strong><small>Kamera &amp; lensa berkualitas</small></span></div>
         <div><span class="service-icon">↗</span><span><strong>Titip Jual</strong><small>Jangkau lebih banyak</small></span></div>
         <div><span class="service-icon">✓</span><span><strong>Aman &amp; Terpercaya</strong><small>Transaksi terlindungi</small></span></div>
     </section>
+
     <section class="popular-section">
-        <div class="section-heading"><div><h2>Produk populer</h2><p>Pilihan kamera favorit untuk setiap momen.</p></div><a href="{{ route('products.index') }}">Lihat semua →</a></div>
+        <div class="section-heading">
+            <div>
+                <h2>Kamera populer</h2>
+                <p>Pilihan kamera favorit untuk setiap momen.</p>
+            </div>
+            <a href="{{ route('products.index') }}">Lihat semua →</a>
+        </div>
+
         <div class="product-grid">
-            @foreach ([['Sony A7 III',250000,'4.8'],['Canon EOS R50',180000,'4.7'],['Fujifilm X-T30',200000,'4.8'],['Sony Alpha 6400',170000,'4.7']] as [$name,$price,$rating])
-                <a href="{{ route('products.show') }}" class="product-card"><div class="camera-image"></div><span class="badge">Sewa</span><h3>{{ $name }}</h3><div class="price">Rp {{ number_format($price, 0, ',', '.') }}<small>/hari</small></div><p class="stars">★ {{ $rating }} <span>(120 ulasan)</span></p></a>
+            {{-- Mengambil gambar langsung dari public/images/ --}}
+            @foreach ($products as $product)
+                <a href="{{ route('products.show', $product->id) }}" class="product-card">
+                    <img 
+                        src="{{ $product->image ? asset('images/' . $product->image) : 'https://placehold.co/400x300?text=No+Image' }}" 
+                        alt="{{ $product->name }}" 
+                        class="camera-image"
+                        style="object-fit: cover; width: 100%; height: 180px; border-radius: 8px 8px 0 0;"
+                    >
+                    <span class="badge">{{ $product->category }}</span>
+                    <h3>{{ $product->name }}</h3>
+                    <div class="price">
+                        Rp {{ number_format($product->price_24h, 0, ',', '.') }}<small>/24 jam</small>
+                    </div>
+                    <p class="stars">★ 5.0 <span>(Baru)</span></p>
+                </a>
             @endforeach
         </div>
     </section>
