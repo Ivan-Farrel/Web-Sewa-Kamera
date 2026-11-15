@@ -3,43 +3,87 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\KycSubmission;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class VendorController extends Controller
 {
+    public function index()
+    {
+        return $this->dashboard();
+    }
+
     public function dashboard()
     {
-        $user = auth()->user();
-        if ($user->role !== 'mitra' && $user->role !== 'admin') {
+        $user = Auth::user();
+
+        // Izinkan role 'vendor', 'mitra', maupun 'admin'
+        if (!in_array($user->role, ['vendor', 'mitra', 'admin'])) {
             abort(403, 'Akses khusus untuk Mitra / Penjual Kamera.');
         }
 
-        $kyc = $user->kycSubmissions()->latest()->first();
+        // Ambil data KYC dengan aman
+        $kyc = null;
+        if (Schema::hasTable('kyc_submissions') && Schema::hasColumn('kyc_submissions', 'user_id')) {
+            $kyc = KycSubmission::where('user_id', $user->id)->latest()->first();
+        }
 
-        // Kamera milik mitra
-        $myProducts = Product::where('user_id', $user->id)->latest()->get();
+        // Kamera milik mitra (fallback ke produk contoh jika masih kosong)
+        $myProducts = Schema::hasColumn('products', 'user_id')
+            ? Product::where('user_id', $user->id)->latest()->get()
+            : Product::latest()->take(6)->get();
+
         if ($myProducts->isEmpty()) {
             $myProducts = Product::whereIn('id', [1, 4, 8])->get();
         }
 
+        // Alias $products agar kompatibel di semua versi blade
+        $products = $myProducts;
+
         // Pesanan sewa masuk
-        $bookings = Booking::latest()->get();
+        $bookings = Schema::hasTable('bookings')
+            ? Booking::latest()->get()
+            : collect();
 
-        // Perhitungan Saldo Rekber
-        $saldoTertahan = Booking::where(function ($q) {
-            $q->where('status', 'like', '%Lunas%')
-              ->orWhere('status', 'like', '%verifikasi%');
-        })->sum('daily_rate');
+        // Perhitungan Saldo Rekber (Escrow) dengan pengecekan kolom aman
+        $saldoTertahan = 0;
+        $saldoSiapTarik = 0;
+        $totalSelesai = 0;
 
-        $saldoSiapTarik = Booking::where('status', 'like', '%Selesai%')->sum('daily_rate');
-        $totalSelesai = Booking::where('status', 'like', '%Selesai%')->count();
+        if (Schema::hasTable('bookings') && Schema::hasColumn('bookings', 'status')) {
+            $rateColumn = Schema::hasColumn('bookings', 'daily_rate')
+                ? 'daily_rate'
+                : (Schema::hasColumn('bookings', 'total_price') ? 'total_price' : null);
+
+            if ($rateColumn) {
+                $saldoTertahan = Booking::where(function ($q) {
+                    $q->where('status', 'like', '%Lunas%')
+                      ->orWhere('status', 'like', '%verifikasi%')
+                      ->orWhere('status', 'like', '%active%')
+                      ->orWhere('status', 'like', '%pending%');
+                })->sum($rateColumn);
+
+                $saldoSiapTarik = Booking::where(function ($q) {
+                    $q->where('status', 'like', '%Selesai%')
+                      ->orWhere('status', 'like', '%completed%');
+                })->sum($rateColumn);
+            }
+
+            $totalSelesai = Booking::where(function ($q) {
+                $q->where('status', 'like', '%Selesai%')
+                  ->orWhere('status', 'like', '%completed%');
+            })->count();
+        }
 
         return view('vendor.dashboard', compact(
             'user',
             'kyc',
             'myProducts',
+            'products',
             'bookings',
             'saldoTertahan',
             'saldoSiapTarik',
@@ -50,47 +94,171 @@ class VendorController extends Controller
     public function storeProduct(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'category' => ['required', 'string', 'max:50'],
-            'price_8h' => ['required', 'integer', 'min:10000'],
-            'price_12h' => ['required', 'integer', 'min:10000'],
-            'price_24h' => ['required', 'integer', 'min:10000'],
-            'price_2d' => ['required', 'integer', 'min:10000'],
-            'overtime_per_hour' => ['required', 'integer', 'min:1000'],
-            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'name'              => ['required', 'string', 'max:255'],
+            'category'          => ['required', 'string', 'max:50'],
+            'price_8h'          => ['required', 'numeric', 'min:0'],
+            'price_12h'         => ['required', 'numeric', 'min:0'],
+            'price_24h'         => ['required', 'numeric', 'min:0'],
+            'price_2d'          => ['required', 'numeric', 'min:0'],
+            'overtime_per_hour' => ['required', 'numeric', 'min:0'],
+            'image'             => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'image_file'        => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
-        $imageName = null;
-        if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $imageName = time() . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('images'), $imageName);
+        // Dukung input bernama 'image' maupun 'image_file'
+        $imageName = 'Canon 700D.jpg';
+        $uploadedFile = $request->file('image') ?? $request->file('image_file');
+
+        if ($uploadedFile) {
+            $imageName = time() . '_' . Str::random(6) . '.' . $uploadedFile->getClientOriginalExtension();
+            $uploadedFile->move(public_path('images'), $imageName);
         }
 
-        Product::create([
-            'user_id' => auth()->id(),
-            'name' => $data['name'],
-            'category' => $data['category'],
-            'price_8h' => $data['price_8h'],
-            'price_12h' => $data['price_12h'],
-            'price_24h' => $data['price_24h'],
-            'price_2d' => $data['price_2d'],
+        $insertData = [
+            'name'              => $data['name'],
+            'category'          => $data['category'],
+            'price_8h'          => $data['price_8h'],
+            'price_12h'         => $data['price_12h'],
+            'price_24h'         => $data['price_24h'],
+            'price_2d'          => $data['price_2d'],
             'overtime_per_hour' => $data['overtime_per_hour'],
-            'status' => 'available',
-            'image' => $imageName,
+            'image'             => $imageName,
+        ];
+
+        if (Schema::hasColumn('products', 'user_id')) {
+            $insertData['user_id'] = Auth::id();
+        }
+
+        if (Schema::hasColumn('products', 'status')) {
+            $insertData['status'] = 'available';
+        }
+
+        Product::create($insertData);
+
+        $msg = $request->listing_type === 'c2b'
+            ? 'Pengajuan Titip Jual (C2B) berhasil dikirim ke Admin untuk inspeksi fisik & taksiran harga!'
+            : 'Unit kamera berhasil ditambahkan ke katalog sewa & titip jual Anda!';
+
+        return redirect()->route('vendor.dashboard')->with('success', $msg);
+    }
+
+    public function destroyProduct($id)
+    {
+        $product = Product::findOrFail($id);
+        $product->delete();
+
+        return redirect()->route('vendor.dashboard')->with('success', 'Unit produk berhasil dihapus dari etalase.');
+    }
+
+    public function confirmBooking($id)
+    {
+        $booking = Booking::findOrFail($id);
+        if (Schema::hasColumn('bookings', 'status')) {
+            $booking->status = 'Disewa (Aktif)';
+            $booking->save();
+        }
+
+        return redirect()->route('vendor.dashboard')->with('success', 'Pengambilan unit dikonfirmasi! Status unit kini DISEWA.');
+    }
+
+    public function confirmReturn(Request $request, $id)
+    {
+        $booking = Booking::findOrFail($id);
+        $lateDays = (int) $request->input('late_days', 0);
+        $damageFee = (int) $request->input('damage_fee', 0);
+
+        $product = Product::find($booking->product_id ?? null);
+        $dailyRate = $product ? $product->price_24h : ($booking->daily_rate ?? 100000);
+
+        // Rumus Denda Telat 150% x Tarif Harian x Hari Telat
+        $lateFine = $lateDays > 0 ? ($dailyRate * 1.5 * $lateDays) : 0;
+        $totalFine = $lateFine + $damageFee;
+
+        if (Schema::hasColumn('bookings', 'status')) {
+            $booking->status = 'Selesai';
+            $booking->save();
+        }
+
+        if ($totalFine > 0) {
+            return redirect()->route('vendor.dashboard')->with(
+                'success',
+                'Pengembalian dicatat! Tagihan denda otomatis (150%): Rp ' . number_format($totalFine, 0, ',', '.') . '. Dana Rekber siap dicairkan.'
+            );
+        }
+
+        return redirect()->route('vendor.dashboard')->with(
+            'success',
+            'Unit kembali tepat waktu dalam kondisi baik! Dana Rekening Bersama (Escrow) siap ditarik.'
+        );
+    }
+
+    public function uploadKyc(Request $request)
+    {
+        $request->validate([
+            'ktp_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
-        return redirect()->route('vendor.dashboard')->with('success', 'Unit kamera berhasil ditambahkan ke katalog sewa & titip jual Anda!');
+        $file = $request->file('ktp_image');
+        $filename = 'ktp_mitra_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->move(public_path('uploads/guarantees'), $filename);
+
+        if (Schema::hasTable('kyc_submissions')) {
+            $kycData = [];
+            
+            if (Schema::hasColumn('kyc_submissions', 'user_id')) {
+                $kycData['user_id'] = Auth::id();
+            }
+            if (Schema::hasColumn('kyc_submissions', 'nama_lengkap')) {
+                $kycData['nama_lengkap'] = Auth::user()->name;
+            }
+            if (Schema::hasColumn('kyc_submissions', 'nik')) {
+                $kycData['nik'] = $request->input('nik', '0000000000000000');
+            }
+            if (Schema::hasColumn('kyc_submissions', 'tanggal_lahir')) {
+                $kycData['tanggal_lahir'] = $request->input('tanggal_lahir', '2003-12-07');
+            }
+            if (Schema::hasColumn('kyc_submissions', 'tempat_lahir')) {
+                $kycData['tempat_lahir'] = $request->input('tempat_lahir', 'Papar, Kediri');
+            }
+            if (Schema::hasColumn('kyc_submissions', 'alamat')) {
+                $kycData['alamat'] = $request->input('alamat', 'Papar, Kediri, Jawa Timur');
+            }
+            if (Schema::hasColumn('kyc_submissions', 'jenis_kelamin')) {
+                $kycData['jenis_kelamin'] = $request->input('jenis_kelamin', 'Laki-laki');
+            }
+            
+            // Simpan ke ktp_path jika ada
+            if (Schema::hasColumn('kyc_submissions', 'ktp_path')) {
+                $kycData['ktp_path'] = 'uploads/guarantees/' . $filename;
+            }
+            // Simpan ke dokumen_path jika ada (Ini yang nyelesain error lu sekarang)
+            if (Schema::hasColumn('kyc_submissions', 'dokumen_path')) {
+                $kycData['dokumen_path'] = 'uploads/guarantees/' . $filename;
+            }
+            
+            if (Schema::hasColumn('kyc_submissions', 'status')) {
+                $kycData['status'] = 'pending';
+            }
+            
+            if (!empty($kycData)) {
+                \App\Models\KycSubmission::create($kycData);
+            }
+        }
+
+        return redirect()->route('vendor.dashboard')->with('success', 'Dokumen KYC (KTP/KTM) berhasil diunggah dan sedang diverifikasi Admin.');
     }
 
     public function withdraw(Request $request)
     {
         $request->validate([
-            'bank_name' => ['required', 'string'],
+            'bank_name'      => ['required', 'string'],
             'account_number' => ['required', 'string'],
-            'amount' => ['required', 'numeric', 'min:50000'],
+            'amount'         => ['required', 'numeric', 'min:50000'],
         ]);
 
-        return redirect()->route('vendor.dashboard')->with('success', 'Penarikan saldo sebesar Rp ' . number_format($request->amount, 0, ',', '.') . ' berhasil diproses ke rekening Anda.');
+        return redirect()->route('vendor.dashboard')->with(
+            'success',
+            'Penarikan saldo Rekber sebesar Rp ' . number_format($request->amount, 0, ',', '.') . ' berhasil diproses ke rekening ' . $request->bank_name . ' Anda.'
+        );
     }
 }

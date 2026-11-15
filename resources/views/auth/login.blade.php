@@ -1,111 +1,138 @@
 @extends('layouts.app')
-@section('title', 'Masuk atau Daftar Akun - CamHub')
-@section('bodyClass', 'auth-body')
+@section('title', 'Masuk atau Daftar - CamHub')
+
 @section('content')
-<main class="auth-layout">
-    <section class="auth-promo">
-        <a class="auth-brand" href="{{ route('home') }}"><span>▣</span> CamHub</a>
-        <div class="promo-copy">
-            <h1>Platform Jual Beli,<br>Titip Jual &amp; Sewa Kamera<br>Terlengkap dan Terpercaya.</h1>
-        </div>
-        <div class="promo-points">
-            <span>✓ Transaksi Jual Beli Aman (Escrow)</span>
-            <span>✓ Titip Jual &amp; Mitra Terverifikasi KYC</span>
-            <span>✓ Sewa Cepat Langsung Tanpa Perlu Akun</span>
-        </div>
-    </section>
+<main class="page auth-page" style="background-color: #f8fafc; min-height: 100vh; padding: 3rem 1rem;">
+    <div style="max-width: 500px; margin: 0 auto; background: #ffffff; padding: 2.25rem; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);">
 
-    <section class="auth-forms">
-        <div class="auth-form-inner">
-            <!-- Info Khusus untuk Penyewa -->
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; padding: 10px 14px; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.85rem; color: #166534; line-height: 1.5;">
-                <strong>💡 Mau Sewa Kamera?</strong> Anda <strong>tidak perlu login atau mendaftar</strong>. Langsung pilih kamera di <a href="{{ route('products.index') }}" style="color: #15803d; text-decoration: underline; font-weight: 700;">Katalog Sewa</a> dan lengkapi foto jaminan saat checkout.
+        {{-- Alert Error / Success --}}
+        @if ($errors->any())
+            <div style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.85rem 1rem; border-radius: 10px; margin-bottom: 1.5rem; font-size: 0.875rem;">
+                <ul style="margin: 0; padding-left: 1.25rem;">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
             </div>
+        @endif
 
-            <p class="eyebrow">PORTAL KHUSUS PEMBELI, TITIP JUAL &amp; ADMIN</p>
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #0f172a; margin-top: 4px;">Masuk ke Akun CamHub</h1>
-            <p class="muted" style="margin-bottom: 1rem;">Khusus untuk Pembeli unit, Penjual / Titip Jual, dan Administrator.</p>
-
-            <!-- Akun Demo Cepat untuk Uji Coba -->
-            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px 12px; margin-bottom: 1.25rem;">
-                <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase;">⚡ 1-Klik Isi Akun Demo (Uji Coba):</span>
-                <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
-                    <button type="button" onclick="fillLogin('admin@camhub.com', 'password123')" style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
-                        👑 Admin
-                    </button>
-                    <button type="button" onclick="fillLogin('mitra@camhub.com', 'password123')" style="background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
-                        🏪 Mitra (Penjual / Titip Sewa)
-                    </button>
-                    <button type="button" onclick="fillLogin('pembeli@camhub.com', 'password123')" style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
-                        🛍️ Pembeli
-                    </button>
-                </div>
+        @if (session('success'))
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; padding: 0.85rem 1rem; border-radius: 10px; margin-bottom: 1.5rem; font-size: 0.875rem;">
+                {{ session('success') }}
             </div>
+        @endif
 
-            @if ($errors->any()) 
-                <div class="notice" role="alert" style="margin-bottom: 1rem; background: #fef2f2; color: #991b1b; border-left: 4px solid #ef4444; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem;">
-                    {{ $errors->first() }}
-                </div> 
-            @endif
+        {{-- ==================== FORM LOGIN ==================== --}}
+        <div>
+            <h1 style="font-size: 1.65rem; font-weight: 800; color: #0f172a; margin-bottom: 0.35rem;">Masuk ke Akun CamHub</h1>
+            <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem;">
+                Masuk menggunakan email dan password akunmu.
+            </p>
 
-            <form method="POST" action="{{ route('login') }}">
+            <form action="{{ url('/login') }}" method="POST" style="display: flex; flex-direction: column; gap: 1.1rem;">
                 @csrf
-                <label for="login-email">Email</label>
-                <input id="login-email" type="email" name="email" value="{{ old('email') }}" placeholder="nama@email.com" required autocomplete="email">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Email</label>
+                    <input type="email" name="email" value="{{ old('email') }}" placeholder="nama@email.com" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="login-password">Password</label>
-                <input id="login-password" type="password" name="password" placeholder="Masukkan password" required autocomplete="current-password">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Password</label>
+                    <input type="password" name="password" placeholder="Masukkan password" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <div class="auth-options">
-                    <label class="radio-row">
-                        <input type="checkbox" name="remember" value="1"> Ingat saya
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; color: #475569; cursor: pointer;">
+                        <input type="checkbox" name="remember" style="width: 15px; height: 15px; cursor: pointer;">
+                        <span>Ingat saya</span>
                     </label>
-                    <a href="#register-name">Lupa password?</a>
+                    <a href="#" style="color: #2563eb; font-weight: 600; text-decoration: none;">Lupa password?</a>
                 </div>
 
-                <button class="btn" type="submit" style="width: 100%; margin-top: 10px;">Masuk ke Akun</button>
+                <button type="submit" style="width: 100%; background: #2563eb; color: #ffffff; padding: 0.75rem; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer;">
+                    Masuk ke Akun
+                </button>
             </form>
 
-            <div class="auth-divider"><span>atau</span></div>
-            <p class="register-prompt">Belum punya akun? <a href="#register-name">Daftar Akun Baru</a></p>
+            <div style="text-align: center; margin: 1.5rem 0; font-size: 0.85rem; color: #64748b;">
+                Belum punya akun? <a href="#register-form" style="color: #2563eb; font-weight: 700; text-decoration: none;">Daftar Akun Baru</a>
+            </div>
+        </div>
 
-            <form class="register-form" method="POST" action="{{ route('register') }}" id="register-name" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px dashed #e2e8f0;">
+        <hr style="margin: 2rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+
+        {{-- ==================== FORM REGISTER ==================== --}}
+        <div id="register-form">
+            <h2 style="font-size: 1.4rem; font-weight: 800; color: #0f172a; margin-bottom: 0.35rem;">Daftar Akun Baru</h2>
+            <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 1.25rem;">
+                Penyewa bisa menyewa langsung tanpa akun (pendaftaran bersifat opsional), sedangkan Mitra wajib mendaftar untuk mengelola etalase kamera & Rekber.
+            </p>
+
+            <form action="{{ url('/register') }}" method="POST" style="display: flex; flex-direction: column; gap: 1.1rem;">
                 @csrf
-                <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Daftar Akun Baru</h2>
-                <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 1rem;">Pendaftaran untuk Pembeli Kamera atau Penjual / Mitra Titip Jual.</p>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Nama Lengkap</label>
+                    <input type="text" name="name" value="{{ old('name') }}" placeholder="Nama sesuai identitas" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="register-fullname">Nama Lengkap</label>
-                <input id="register-fullname" type="text" name="name" value="{{ old('name') }}" placeholder="Nama sesuai identitas" required autocomplete="name">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Email</label>
+                    <input type="email" name="email" value="{{ old('email') }}" placeholder="email@contoh.com" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="register-email">Email</label>
-                <input id="register-email" type="email" name="email" value="{{ old('email') }}" placeholder="email@contoh.com" required autocomplete="email">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">No. HP / WhatsApp</label>
+                    <input type="text" name="phone" value="{{ old('phone') }}" placeholder="081234567890" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="register-phone">No. HP / WhatsApp</label>
-                <input id="register-phone" type="tel" name="phone" value="{{ old('phone') }}" placeholder="081234567890" required autocomplete="tel">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Daftar Sebagai</label>
+                    <select id="role-select" name="role" required onchange="updateRoleHint(this.value)"
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: #ffffff; color: #1e293b; outline: none;">
+                        <option value="customer" {{ old('role') == 'customer' ? 'selected' : '' }}>Penyewa / Pelanggan (Opsional)</option>
+                        <option value="vendor" {{ old('role') == 'vendor' ? 'selected' : '' }}>Mitra (Titip Sewa / Jual Kamera)</option>
+                    </select>
+                    <small id="role-hint" style="display: block; margin-top: 0.4rem; color: #64748b; font-size: 0.78rem; line-height: 1.4;">
+                        💡 <b>Opsional untuk Penyewa:</b> Setelah daftar akan langsung diarahkan ke Beranda Utama untuk menyewa atau membeli kamera.
+                    </small>
+                </div>
 
-                <label for="register-role">Tujuan Pendaftaran (Jenis Akun)</label>
-                <select id="register-role" name="role" required style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; margin: 4px 0 8px;">
-                    <option value="customer" @selected(old('role', 'customer') === 'customer')>Pembeli Kamera (Jual Beli Escrow)</option>
-                    <option value="mitra" @selected(old('role') === 'mitra')>Penjual / Titip Jual Kamera (Mitra CamHub)</option>
-                </select>
-                <p class="muted" style="font-size: 0.75rem; color: #64748b; margin-bottom: 1rem;">Mitra penjual wajib mengunggah verifikasi KTP (KYC) setelah registrasi.</p>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Password (minimal 8 karakter)</label>
+                    <input type="password" name="password" placeholder="Minimal 8 karakter" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="register-password">Password (minimal 8 karakter)</label>
-                <input id="register-password" type="password" name="password" required minlength="8" autocomplete="new-password">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Ulangi Password</label>
+                    <input type="password" name="password_confirmation" placeholder="Ketik ulang password" required
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                </div>
 
-                <label for="register-confirmation">Ulangi Password</label>
-                <input id="register-confirmation" type="password" name="password_confirmation" required minlength="8" autocomplete="new-password">
-
-                <button class="btn" type="submit" style="width: 100%; margin-top: 12px; background: #0f172a;">Daftar Akun Sekarang</button>
+                <button type="submit" style="width: 100%; background: #0f172a; color: #ffffff; padding: 0.75rem; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; margin-top: 0.25rem;">
+                    Daftar Akun Sekarang
+                </button>
             </form>
         </div>
-    </section>
+
+    </div>
 </main>
 
 <script>
-function fillLogin(email, pass) {
-    document.getElementById('login-email').value = email;
-    document.getElementById('login-password').value = pass;
+function updateRoleHint(role) {
+    const hint = document.getElementById('role-hint');
+    if (role === 'vendor') {
+        hint.innerHTML = '🏪 <b>Khusus Mitra (C2C & C2B):</b> Langsung diarahkan ke <b>Dashboard Mitra</b> untuk upload kamera/lensa, atur harga sewa/jual, konfirmasi pesanan, dan pencairan Rekber.';
+        hint.style.color = '#2563eb';
+    } else {
+        hint.innerHTML = '💡 <b>Opsional untuk Penyewa:</b> Setelah daftar akan langsung diarahkan ke Beranda Utama untuk menyewa atau membeli kamera.';
+        hint.style.color = '#64748b';
+    }
 }
 </script>
 @endsection

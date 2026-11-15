@@ -15,24 +15,53 @@
         <input type="search" name="q" value="{{ request('q') }}" placeholder="Cari kamera, lensa, aksesoris...">
         <button type="submit">Cari</button>
     </form>
+    
     <nav class="nav-links">
         <a href="{{ route('home') }}">Beranda</a>
         <a href="{{ route('products.index') }}">Katalog Sewa</a>
-        @auth <a href="{{ route('camhub.dashboard-pelanggan') }}">Pesanan saya</a> @endauth
+        @auth
+            @if(auth()->user()->role === 'admin')
+                <a href="{{ route('admin.dashboard') }}">Panel Admin</a>
+            @elseif(auth()->user()->role === 'vendor' || auth()->user()->role === 'mitra')
+                <a href="{{ route('vendor.dashboard') }}">Dashboard Mitra</a>
+            @else
+                <a href="{{ route('camhub.dashboard-pelanggan') }}">Pesanan saya</a>
+            @endif
+        @endauth
     </nav>
+    
     <div class="nav-actions">
         @auth
-            <a href="{{ route('camhub.dashboard-pelanggan') }}">{{ auth()->user()->name }}</a>
-            <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-small" type="submit">Keluar</button></form>
+            @if(auth()->user()->role === 'admin')
+                <a href="{{ route('admin.dashboard') }}">{{ auth()->user()->name }}</a>
+            @elseif(auth()->user()->role === 'vendor' || auth()->user()->role === 'mitra')
+                <a href="{{ route('vendor.dashboard') }}">{{ auth()->user()->name }}</a>
+            @else
+                <a href="{{ route('camhub.dashboard-pelanggan') }}">{{ auth()->user()->name }}</a>
+            @endif
+            
+            <form method="POST" action="{{ route('logout') }}" style="display:inline;">
+                @csrf
+                <button class="btn btn-small" type="submit">Keluar</button>
+            </form>
         @else
             <a href="{{ route('camhub.login') }}">Masuk</a>
-            <a href="{{ route('camhub.login') }}#register-name" class="btn btn-small">Daftar</a>
+            {{-- Mengubah #register-name menjadi #register-form agar sesuai dengan ID form di login.blade.php kita tadi --}}
+            <a href="{{ route('camhub.login') }}#register-form" class="btn btn-small">Daftar</a>
         @endauth
     </div>
 </header>
-@if(session('success')) <div class="notice" role="status">{{ session('success') }}</div> @endif
-@if ($errors->any()) <div class="notice" role="alert">{{ $errors->first() }}</div> @endif
+
+@if(session('success')) 
+    <div class="notice" role="status">{{ session('success') }}</div> 
+@endif
+
+@if ($errors->any()) 
+    <div class="notice" role="alert">{{ $errors->first() }}</div> 
+@endif
+
 @yield('content')
+
 <script src="{{ asset('js/script.js') }}?v={{ file_exists(public_path('js/script.js')) ? filemtime(public_path('js/script.js')) : time() }}"></script>
 </body>
 </html>
