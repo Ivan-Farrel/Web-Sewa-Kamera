@@ -7,13 +7,14 @@ use App\Models\KycSubmission;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class AdminController extends Controller
 {
     public function dashboard()
     {
         $user = auth()->user();
-        if ($user->role !== 'admin') {
+        if (!$user || $user->role !== 'admin') {
             abort(403, 'Akses terbatas untuk Administrator.');
         }
 
@@ -23,7 +24,17 @@ class AdminController extends Controller
 
         $bookings = Booking::latest()->get();
         $totalBookings = $bookings->count();
-        $totalEscrow = $bookings->sum('total');
+
+        // Hitung total escrow dengan pengecekan kolom yang aman
+        if (Schema::hasColumn('bookings', 'total')) {
+            $totalEscrow = $bookings->sum('total');
+        } elseif (Schema::hasColumn('bookings', 'total_price')) {
+            $totalEscrow = $bookings->sum('total_price');
+        } elseif (Schema::hasColumn('bookings', 'daily_rate')) {
+            $totalEscrow = $bookings->sum('daily_rate');
+        } else {
+            $totalEscrow = 0;
+        }
 
         $kycSubmissions = KycSubmission::with('user')->latest()->get();
         $totalKyc = $kycSubmissions->count();
@@ -51,23 +62,87 @@ class AdminController extends Controller
 
     public function updateKycStatus(Request $request, $id)
     {
-        abort_unless($request->user()->role === 'admin', 403);
-        $request->validate(['status' => ['required', 'in:Disetujui,Ditolak,Menunggu Review']]);
-        $kyc = KycSubmission::findOrFail($id);
-        $status = $request->input('status');
-        $kyc->update(['status' => $status]);
+        abort_unless($request->user() && $request->user()->role === 'admin', 403, 'Akses terbatas untuk Administrator.');
 
-        return back()->with('success', "Status KYC milik {$kyc->nama_lengkap} berhasil diubah menjadi: {$status}.");
+        $request->validate([
+            'status' => ['required', 'string'],
+        ]);
+
+        $kyc = KycSubmission::findOrFail($id);
+
+        // Terima input tombol versi Indonesia maupun Inggris lalu seragamkan
+        $rawStatus = strtolower(trim($request->input('status')));
+
+        $statusMap = [
+            'disetujui'       => 'Disetujui',
+            'setujui'         => 'Disetujui',
+            'approved'        => 'Disetujui',
+            'approve'         => 'Disetujui',
+            'verified'        => 'Disetujui',
+            'ditolak'         => 'Ditolak',
+            'tolak'           => 'Ditolak',
+            'rejected'        => 'Ditolak',
+            'reject'          => 'Ditolak',
+            'menunggu review' => 'Menunggu Review',
+            'pending'         => 'Menunggu Review',
+        ];
+
+        if (!isset($statusMap[$rawStatus])) {
+            return back()->withErrors(['status' => 'Status KYC tidak valid.']);
+        }
+
+        $finalStatus = $statusMap[$rawStatus];
+
+        // Assign langsung + save() agar tidak terblokir $fillable di Model
+        if (Schema::hasColumn('kyc_submissions', 'status')) {
+            $kyc->status = $finalStatus;
+            $kyc->save();
+        }
+
+        // Sinkronkan juga ke tabel users jika kolom status KYC tersedia
+        if (!empty($kyc->user_id)) {
+            $mitra = User::find($kyc->user_id);
+            if ($mitra) {
+                $updatedUser = false;
+                if (Schema::hasColumn('users', 'status_kyc')) {
+                    $mitra->status_kyc = $finalStatus;
+                    $updatedUser = true;
+                }
+                if (Schema::hasColumn('users', 'kyc_status')) {
+                    $mitra->kyc_status = $finalStatus;
+                    $updatedUser = true;
+                }
+                if ($updatedUser) {
+                    $mitra->save();
+                }
+            }
+        }
+
+        $nama = $kyc->nama_lengkap ?? ($kyc->user->name ?? 'Mitra');
+
+        return back()->with('success', "Status KYC milik {$nama} berhasil diubah menjadi: {$finalStatus}.");
     }
 
     public function updateBookingStatus(Request $request, $code)
     {
-        abort_unless($request->user()->role === 'admin', 403);
-        $request->validate(['status' => ['required', 'in:Menunggu verifikasi jaminan,Lunas (Siap Diambil / Dikirim),Disewa (Aktif),Selesai,Dibatalkan']]);
-        $booking = Booking::where('booking_code', $code)->firstOrFail();
-        $status = $request->input('status');
-        $booking->update(['status' => $status]);
+        abort_unless($request->user() && $request->user()->role === 'admin', 403, 'Akses terbatas untuk Administrator.');
 
-        return back()->with('success', "Status pesanan #{$code} berhasil diperbarui.");
+        $request->validate([
+            'status' => ['required', 'in:Menunggu verifikasi jaminan,Lunas (Siap Diambil / Dikirim),Disewa (Aktif),Selesai,Dibatalkan'],
+        ]);
+
+        $booking = Schema::hasColumn('bookings', 'booking_code')
+            ? Booking::where('booking_code', $code)->firstOrFail()
+            : Booking::findOrFail($code);
+
+        $status = $request->input('status');
+
+        // Assign langsung + save() agar aman dari masalah $fillable
+        if (Schema::hasColumn('bookings', 'status')) {
+            $booking->status = $status;
+            $booking->save();
+        }
+
+        return back()->with('success', "Status pesanan #{$code} berhasil diperbarui menjadi: {$status}.");
     }
 }
