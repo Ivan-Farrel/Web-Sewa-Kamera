@@ -13,10 +13,10 @@ class Product extends Model
         'user_id',
         'name',
         'category',
-        'price_1d',
-        'price_3d',
-        'price_7d',
-        'price_14d',
+        'price_8h',
+        'price_12h',
+        'price_24h',
+        'price_2d',
         'overtime_per_hour',
         'status',
         'image',
@@ -25,5 +25,10 @@ class Product extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
     }
 }

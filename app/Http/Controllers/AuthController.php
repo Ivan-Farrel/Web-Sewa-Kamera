@@ -12,7 +12,7 @@ class AuthController extends Controller
     public function show()
     {
         if (Auth::check()) {
-            return redirect()->route('camhub.dashboard-pelanggan');
+            return redirect()->route($this->destinationFor(Auth::user()));
         }
 
         return view('auth.login');
@@ -41,7 +41,7 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:30'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role' => ['required', 'in:customer,mitra'],
+            'role' => ['required', 'in:customer,vendor,mitra'],
         ]);
 
         $user = User::create([
@@ -49,7 +49,7 @@ class AuthController extends Controller
             'email' => $data['email'],
             'phone' => $data['phone'],
             'password' => Hash::make($data['password']),
-            'role' => $data['role'],
+            'role' => in_array($data['role'], ['vendor', 'mitra'], true) ? 'vendor' : 'customer',
         ]);
 
         Auth::login($user);
@@ -62,7 +62,7 @@ class AuthController extends Controller
     {
         return match ($user->role) {
             'admin' => 'admin.dashboard',
-            'mitra' => $user->kycSubmissions()->exists() ? 'vendor.dashboard' : 'camhub.kyc',
+            'mitra', 'vendor' => 'vendor.dashboard',
             default => 'camhub.dashboard-pelanggan',
         };
     }

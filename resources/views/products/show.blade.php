@@ -12,7 +12,7 @@
             <h1>{{ $product->name }}</h1>
             <p class="stars">★ 4.8 (120 ulasan) · Terjual 50+</p>
 
-            <h2 class="price" id="displayedPrice">Rp {{ number_format($product->price_1d, 0, ',', '.') }}<small id="displayedDuration">/hari</small></h2>
+            <h2 class="price" id="displayedPrice">Rp {{ number_format($product->price_24h, 0, ',', '.') }}<small id="displayedDuration">/24 jam</small></h2>
 
             <div style="margin: 6px 0 14px; font-size: 0.9rem; color: #475569;">
                 <span>Overtime: <strong style="color: #e11d48;">Rp {{ number_format($product->overtime_per_hour, 0, ',', '.') }}</strong> / jam</span>
@@ -26,10 +26,10 @@
 
             <h4>Durasi sewa</h4>
             <div class="duration-options">
-                <button type="button" class="active" data-duration="1d" data-price="{{ $product->price_1d }}" data-add-days="1" data-label="1 Hari">1 Hari</button>
-                <button type="button" data-duration="3d" data-price="{{ $product->price_3d }}" data-add-days="3" data-label="3 Hari">3 Hari</button>
-                <button type="button" data-duration="7d" data-price="{{ $product->price_7d }}" data-add-days="7" data-label="7 Hari">7 Hari</button>
-                <button type="button" data-duration="14d" data-price="{{ $product->price_14d }}" data-add-days="14" data-label="14 Hari">14 Hari</button>
+                <button type="button" data-duration="8h" data-price="{{ $product->price_8h }}" data-add-days="0" data-label="8 Jam">8 Jam</button>
+                <button type="button" data-duration="12h" data-price="{{ $product->price_12h }}" data-add-days="0" data-label="12 Jam">12 Jam</button>
+                <button type="button" class="active" data-duration="24h" data-price="{{ $product->price_24h }}" data-add-days="1" data-label="24 Jam">24 Jam</button>
+                <button type="button" data-duration="2d" data-price="{{ $product->price_2d }}" data-add-days="2" data-label="2 Hari">2 Hari</button>
             </div>
 
             <div class="form-row" style="margin-top: 16px;">
@@ -46,7 +46,7 @@
                 Pengembalian 1 hari setelah tanggal mulai sewa.
             </div>
 
-            <a href="{{ route('bookings.create', ['product_id' => $product->id, 'duration' => '1d', 'start' => now()->toDateString()]) }}" id="bookingLink" class="btn" style="width:100%;margin-top:16px;display:flex;align-items:center;justify-content:center;text-decoration:none;">
+            <a href="{{ route('bookings.create', ['product_id' => $product->id, 'duration' => '24h', 'start' => now()->toDateString()]) }}" id="bookingLink" class="btn" style="width:100%;margin-top:16px;display:flex;align-items:center;justify-content:center;text-decoration:none;">
                 Booking sekarang
             </a>
 

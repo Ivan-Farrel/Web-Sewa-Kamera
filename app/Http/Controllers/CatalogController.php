@@ -7,9 +7,15 @@ use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $products = Product::all();
+        $query = Product::query()->where('status', 'available');
+        if ($request->filled('q')) {
+            $term = trim($request->string('q')->toString());
+            $query->where(fn ($builder) => $builder->where('name', 'like', "%{$term}%")
+                ->orWhere('category', 'like', "%{$term}%"));
+        }
+        $products = $query->latest()->get();
         return view('products.index', compact('products'));
     }
 

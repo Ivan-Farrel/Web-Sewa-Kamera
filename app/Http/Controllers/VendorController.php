@@ -37,16 +37,13 @@ class VendorController extends Controller
             ? Product::where('user_id', $user->id)->latest()->get()
             : Product::latest()->take(6)->get();
 
-        if ($myProducts->isEmpty()) {
-            $myProducts = Product::whereIn('id', [1, 4, 8])->get();
-        }
-
         // Alias $products agar kompatibel di semua versi blade
         $products = $myProducts;
 
         // Pesanan sewa masuk
-        $bookings = Schema::hasTable('bookings')
-            ? Booking::latest()->get()
+        $bookingQuery = Booking::query()->whereHas('product', fn ($query) => $query->where('user_id', $user->id));
+        $bookings = Schema::hasTable('bookings') && Schema::hasColumn('bookings', 'product_id')
+            ? (clone $bookingQuery)->latest()->get()
             : collect();
 
         // Perhitungan Saldo Rekber (Escrow) dengan pengecekan kolom aman
@@ -60,20 +57,20 @@ class VendorController extends Controller
                 : (Schema::hasColumn('bookings', 'total_price') ? 'total_price' : null);
 
             if ($rateColumn) {
-                $saldoTertahan = Booking::where(function ($q) {
+                $saldoTertahan = (clone $bookingQuery)->where(function ($q) {
                     $q->where('status', 'like', '%Lunas%')
                       ->orWhere('status', 'like', '%verifikasi%')
                       ->orWhere('status', 'like', '%active%')
                       ->orWhere('status', 'like', '%pending%');
-                })->sum($rateColumn);
+                })->sum('total');
 
-                $saldoSiapTarik = Booking::where(function ($q) {
+                $saldoSiapTarik = (clone $bookingQuery)->where(function ($q) {
                     $q->where('status', 'like', '%Selesai%')
                       ->orWhere('status', 'like', '%completed%');
-                })->sum($rateColumn);
+                })->sum('total');
             }
 
-            $totalSelesai = Booking::where(function ($q) {
+            $totalSelesai = (clone $bookingQuery)->where(function ($q) {
                 $q->where('status', 'like', '%Selesai%')
                   ->orWhere('status', 'like', '%completed%');
             })->count();
@@ -93,6 +90,7 @@ class VendorController extends Controller
 
     public function storeProduct(Request $request)
     {
+        abort_unless(in_array($request->user()->role, ['vendor', 'mitra'], true), 403);
         $data = $request->validate([
             'name'              => ['required', 'string', 'max:255'],
             'category'          => ['required', 'string', 'max:50'],
@@ -144,7 +142,8 @@ class VendorController extends Controller
 
     public function destroyProduct($id)
     {
-        $product = Product::findOrFail($id);
+        abort_unless(in_array(auth()->user()->role, ['vendor', 'mitra'], true), 403);
+        $product = Product::where('user_id', auth()->id())->findOrFail($id);
         $product->delete();
 
         return redirect()->route('vendor.dashboard')->with('success', 'Unit produk berhasil dihapus dari etalase.');
@@ -152,7 +151,9 @@ class VendorController extends Controller
 
     public function confirmBooking($id)
     {
-        $booking = Booking::findOrFail($id);
+        abort_unless(in_array(auth()->user()->role, ['vendor', 'mitra'], true), 403);
+        $booking = Booking::whereHas('product', fn ($query) => $query->where('user_id', auth()->id()))->findOrFail($id);
+        abort_unless(str_contains($booking->status, 'Lunas'), 409, 'Booking belum lunas.');
         if (Schema::hasColumn('bookings', 'status')) {
             $booking->status = 'Disewa (Aktif)';
             $booking->save();
@@ -163,9 +164,12 @@ class VendorController extends Controller
 
     public function confirmReturn(Request $request, $id)
     {
-        $booking = Booking::findOrFail($id);
-        $lateDays = (int) $request->input('late_days', 0);
-        $damageFee = (int) $request->input('damage_fee', 0);
+        abort_unless(in_array($request->user()->role, ['vendor', 'mitra'], true), 403);
+        $data = $request->validate(['late_days' => ['nullable', 'integer', 'min:0', 'max:365'], 'damage_fee' => ['nullable', 'integer', 'min:0']]);
+        $booking = Booking::whereHas('product', fn ($query) => $query->where('user_id', $request->user()->id))->findOrFail($id);
+        abort_unless(str_contains($booking->status, 'Aktif'), 409, 'Booking belum berstatus aktif.');
+        $lateDays = (int) ($data['late_days'] ?? 0);
+        $damageFee = (int) ($data['damage_fee'] ?? 0);
 
         $product = Product::find($booking->product_id ?? null);
         $dailyRate = $product ? $product->price_24h : ($booking->daily_rate ?? 100000);
@@ -194,6 +198,7 @@ class VendorController extends Controller
 
     public function uploadKyc(Request $request)
     {
+        abort_unless(in_array($request->user()->role, ['vendor', 'mitra'], true), 403);
         $request->validate([
             'ktp_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
@@ -250,6 +255,7 @@ class VendorController extends Controller
 
     public function withdraw(Request $request)
     {
+        abort_unless(in_array($request->user()->role, ['vendor', 'mitra'], true), 403);
         $request->validate([
             'bank_name'      => ['required', 'string'],
             'account_number' => ['required', 'string'],

@@ -12,20 +12,15 @@ class BookingController extends Controller
     public function create(Request $request)
     {
         $productId = $request->query('product_id');
-        $product = $productId ? Product::find($productId) : null;
-        if (!$product) {
-            $product = Product::where('name', 'like', '%Sony A7 III%')->first() ?? Product::first();
-        }
+        $product = $productId ? Product::findOrFail($productId) : Product::first();
+        abort_if(!$product, 404, 'Produk belum tersedia.');
 
         $duration = $request->query('duration', '24h');
-        $durationMap = [
-            '8h' => ['label' => '8 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_8h ?? 200000],
-            '12h' => ['label' => '12 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_12h ?? 250000],
-            '24h' => ['label' => '24 Jam', 'days' => 1, 'add_days' => 1, 'price' => $product->price_24h ?? 300000],
-            '2d' => ['label' => '2 Hari', 'days' => 2, 'add_days' => 2, 'price' => $product->price_2d ?? 500000],
-        ];
-
-        $package = $durationMap[$duration] ?? $durationMap['24h'];
+        $durationMap = $this->durationMap($product);
+        if (!isset($durationMap[$duration])) {
+            $duration = '24h';
+        }
+        $package = $durationMap[$duration];
         $rate = $package['price'];
         $durationLabel = $package['label'];
         $days = $package['days'];
@@ -58,24 +53,14 @@ class BookingController extends Controller
             'ktp_photo.max' => 'Ukuran file KTP maksimal 5MB.',
         ]);
 
-        $product = !empty($data['product_id'])
-            ? Product::find($data['product_id'])
-            : (Product::where('name', 'like', '%Sony A7 III%')->first() ?? Product::first());
+        $product = !empty($data['product_id']) ? Product::findOrFail($data['product_id']) : Product::first();
+        abort_if(!$product, 404, 'Produk belum tersedia.');
 
         $duration = $data['durasi'];
-        $durationMap = [
-            '8h' => ['label' => '8 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_8h ?? 200000],
-            '12h' => ['label' => '12 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_12h ?? 250000],
-            '24h' => ['label' => '24 Jam', 'days' => 1, 'add_days' => 1, 'price' => $product->price_24h ?? 300000],
-            '2d' => ['label' => '2 Hari', 'days' => 2, 'add_days' => 2, 'price' => $product->price_2d ?? 500000],
-        ];
-
-        $package = $durationMap[$duration] ?? [
-            'label' => is_numeric($duration) ? $duration . ' Hari' : '24 Jam',
-            'days' => is_numeric($duration) ? (int)$duration : 1,
-            'add_days' => is_numeric($duration) ? (int)$duration : 1,
-            'price' => $product->price_24h ?? 250000,
-        ];
+        $package = $this->durationMap($product)[$duration] ?? null;
+        if (!$package) {
+            return back()->withErrors(['durasi' => 'Paket durasi tidak valid.'])->withInput();
+        }
 
         $days = $package['days'];
         $rate = $package['price'];
@@ -116,10 +101,13 @@ class BookingController extends Controller
             $guaranteePath = 'uploads/guarantees/' . $filename;
         }
 
-        $bookingCode = 'CH-' . strtoupper(Str::random(6));
+        do {
+            $bookingCode = 'CH-' . strtoupper(Str::random(10));
+        } while (Booking::where('booking_code', $bookingCode)->exists());
 
         $booking = Booking::create([
             'user_id' => auth()->id() ?? null,
+            'product_id' => $product->id,
             'booking_code' => $bookingCode,
             'product_name' => $product->name . ' (' . $package['label'] . ')',
             'customer_name' => $data['nama'],
@@ -151,11 +139,36 @@ class BookingController extends Controller
     public function simulatePayment(string $code)
     {
         $booking = Booking::where('booking_code', $code)->firstOrFail();
+        abort_unless($booking->status === 'Menunggu verifikasi jaminan', 403);
         $booking->update([
             'status' => 'Lunas (Siap Diambil / Dikirim)',
         ]);
 
         return back()->with('success', 'Simulasi pembayaran sukses! Status pesanan kini telah lunas.');
+    }
+
+    public function completeRental(string $code)
+    {
+        abort_unless(auth()->user()?->role === 'admin', 403);
+        $booking = Booking::where('booking_code', $code)->firstOrFail();
+        abort_unless(
+            str_contains($booking->status, 'Lunas') || str_contains($booking->status, 'Aktif'),
+            409,
+            'Booking harus sudah lunas atau sedang disewa sebelum dapat diselesaikan.'
+        );
+        $booking->update(['status' => 'Selesai']);
+
+        return back()->with('success', 'Booking ditandai selesai.');
+    }
+
+    private function durationMap(Product $product): array
+    {
+        return [
+            '8h' => ['label' => '8 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_8h],
+            '12h' => ['label' => '12 Jam', 'days' => 1, 'add_days' => 0, 'price' => $product->price_12h],
+            '24h' => ['label' => '24 Jam', 'days' => 1, 'add_days' => 1, 'price' => $product->price_24h],
+            '2d' => ['label' => '2 Hari', 'days' => 2, 'add_days' => 2, 'price' => $product->price_2d],
+        ];
     }
 
     public function dashboard(Request $request)

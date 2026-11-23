@@ -18,7 +18,7 @@ class AdminController extends Controller
         }
 
         $totalUsers = User::count();
-        $totalMitra = User::where('role', 'mitra')->count();
+        $totalMitra = User::whereIn('role', ['mitra', 'vendor'])->count();
         $totalCustomer = User::where('role', 'customer')->count();
 
         $bookings = Booking::latest()->get();
@@ -51,8 +51,10 @@ class AdminController extends Controller
 
     public function updateKycStatus(Request $request, $id)
     {
+        abort_unless($request->user()->role === 'admin', 403);
+        $request->validate(['status' => ['required', 'in:Disetujui,Ditolak,Menunggu Review']]);
         $kyc = KycSubmission::findOrFail($id);
-        $status = $request->input('status', 'Disetujui');
+        $status = $request->input('status');
         $kyc->update(['status' => $status]);
 
         return back()->with('success', "Status KYC milik {$kyc->nama_lengkap} berhasil diubah menjadi: {$status}.");
@@ -60,6 +62,8 @@ class AdminController extends Controller
 
     public function updateBookingStatus(Request $request, $code)
     {
+        abort_unless($request->user()->role === 'admin', 403);
+        $request->validate(['status' => ['required', 'in:Menunggu verifikasi jaminan,Lunas (Siap Diambil / Dikirim),Disewa (Aktif),Selesai,Dibatalkan']]);
         $booking = Booking::where('booking_code', $code)->firstOrFail();
         $status = $request->input('status');
         $booking->update(['status' => $status]);

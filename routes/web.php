@@ -7,12 +7,8 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\KycController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\VendorController;
-use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 
 Route::redirect('/', '/home')->name('camhub.home');
 Route::get('/home', [ProductController::class, 'index'])->name('home');
@@ -20,67 +16,8 @@ Route::get('/home', [ProductController::class, 'index'])->name('home');
 // ==================== AUTENTIKASI (LOGIN, REGISTER, LOGOUT) ====================
 Route::get('/login', [AuthController::class, 'show'])->name('camhub.login');
 
-Route::post('/login', function (Request $request) {
-    $credentials = $request->validate([
-        'email'    => 'required|email',
-        'password' => 'required',
-    ]);
-
-    if (Auth::attempt($credentials, $request->boolean('remember'))) {
-        $request->session()->regenerate();
-        $role = Auth::user()->role ?? 'customer';
-
-        if ($role === 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
-        if ($role === 'vendor') {
-            return redirect()->route('vendor.dashboard');
-        }
-
-        // Penyewa / Pelanggan langsung ke Beranda Utama (/home)
-        return redirect()->route('home');
-    }
-
-    return back()->withErrors([
-        'email' => 'Email atau password yang Anda masukkan salah.',
-    ])->onlyInput('email');
-})->name('login');
-
-Route::post('/register', function (Request $request) {
-    $validated = $request->validate([
-        'name'     => 'required|string|max:255',
-        'email'    => 'required|email|unique:users,email',
-        'phone'    => 'nullable|string|max:30',
-        'role'     => 'required|in:customer,vendor',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
-
-    $userData = [
-        'name'     => $validated['name'],
-        'email'    => $validated['email'],
-        'password' => Hash::make($validated['password']),
-    ];
-
-    if (Schema::hasColumn('users', 'role')) {
-        $userData['role'] = $validated['role'];
-    }
-    if (Schema::hasColumn('users', 'phone')) {
-        $userData['phone'] = $validated['phone'] ?? null;
-    }
-
-    $user = User::create($userData);
-    Auth::login($user);
-
-    // Jika daftar sebagai Mitra -> langsung ke Dashboard Mitra
-    if ($validated['role'] === 'vendor') {
-        return redirect()->route('vendor.dashboard')
-            ->with('success', 'Selamat datang Mitra CamHub! Silakan unggah unit kamera atau lensa Anda.');
-    }
-
-    // Jika daftar sebagai Penyewa/Pelanggan (Opsional) -> langsung ke Beranda Utama (/home)
-    return redirect()->route('home')
-        ->with('success', 'Akun berhasil dibuat! Selamat menyewa di CamHub.');
-})->name('register');
+Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/register', [AuthController::class, 'register'])->name('register');
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
@@ -104,7 +41,7 @@ Route::middleware('auth')->group(function () {
         if ($role === 'admin') {
             return redirect()->route('admin.dashboard');
         }
-        if ($role === 'vendor') {
+        if (in_array($role, ['vendor', 'mitra'], true)) {
             return redirect()->route('vendor.dashboard');
         }
         return redirect()->route('home');

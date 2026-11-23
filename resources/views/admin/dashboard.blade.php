@@ -176,7 +176,7 @@
                                         </span>
                                     </td>
                                     <td style="padding: 12px 8px; text-align: center;">
-                                        @if (!str_contains($b->status, 'Lunas') && !str_contains($b->status, 'Selesai'))
+                                        @if ($b->status === 'Menunggu verifikasi jaminan')
                                             <form method="POST" action="{{ route('bookings.pay', $b->booking_code) }}">
                                                 @csrf
                                                 <button type="submit" class="btn" style="background: #2563eb; color: white; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 4px; border: none; cursor: pointer;">
